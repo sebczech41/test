@@ -56,6 +56,32 @@ export interface Booking {
   family?: Family
 }
 
+export interface Deceased {
+  id: number
+  plot_id: number
+  family_id: number | null
+  first_name: string
+  last_name: string
+  date_of_birth: string | null
+  date_of_death: string | null
+  interment_date: string | null
+  interment_type: 'burial' | 'cremation'
+  notes: string | null
+  plot?: Plot
+  family?: Family
+}
+
+export interface DashboardData {
+  bookings_this_week: number
+  upcoming_bookings: Booking[]
+  overdue_payments: Payment[]
+  pending_payments_total: number
+  revenue_this_month: number
+  plot_totals: { total: number; available: number; reserved: number; occupied: number }
+  occupancy_rate: number
+  sites_count: number
+}
+
 export interface Payment {
   id: number
   reservation_id: number

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['site_id', 'code', 'type', 'section', 'status', 'capacity'])]
 class Plot extends Model
 {
+    use \App\Models\Concerns\Auditable;
     public function site(): BelongsTo
     {
         return $this->belongsTo(Site::class);

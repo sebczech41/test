@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['name', 'address', 'timezone'])]
 class Site extends Model
 {
+    use \App\Models\Concerns\Auditable;
     public function plots(): HasMany
     {
         return $this->hasMany(Plot::class);

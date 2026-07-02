@@ -1,27 +1,31 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin, { type DateClickArg } from '@fullcalendar/interaction'
 import type { EventClickArg } from '@fullcalendar/core'
-import { api } from '../api/client'
+import { api, fieldErrors } from '../api/client'
 import type { Booking, Site, Family, Plot } from '../api/types'
 import Modal from '../components/Modal'
+import { FieldError, Spinner, StatusBadge } from '../components/ui'
+import { useToast } from '../components/Toast'
+import { useConfirm } from '../components/ConfirmDialog'
 
 const typeColors: Record<Booking['type'], string> = {
-  burial: '#5b4636',
-  cremation: '#8a6d3b',
+  burial: '#4a3aa7',
+  cremation: '#b45309',
   appointment: '#2f6f4f',
-  other: '#555',
+  other: '#52514e',
 }
 
 export default function CalendarPage() {
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const [bookings, setBookings] = useState<Booking[] | null>(null)
   const [sites, setSites] = useState<Site[]>([])
   const [families, setFamilies] = useState<Family[]>([])
   const [plots, setPlots] = useState<Plot[]>([])
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState<Booking | null>(null)
+  const [errors, setErrors] = useState<Record<string, string[]>>({})
   const [form, setForm] = useState({
     site_id: '',
     plot_id: '',
@@ -32,9 +36,10 @@ export default function CalendarPage() {
     ends_at: '',
     notes: '',
   })
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
+  const confirm = useConfirm()
 
-  async function load() {
+  const load = useCallback(async () => {
     const [b, s, f, p] = await Promise.all([
       api.get('/bookings'),
       api.get('/sites'),
@@ -45,15 +50,15 @@ export default function CalendarPage() {
     setSites(s.data)
     setFamilies(f.data)
     setPlots(p.data)
-  }
+  }, [])
 
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   function openCreate(dateStr?: string) {
     setSelected(null)
-    setError(null)
+    setErrors({})
     setForm({
       site_id: sites[0]?.id.toString() ?? '',
       plot_id: '',
@@ -72,12 +77,12 @@ export default function CalendarPage() {
   }
 
   function handleEventClick(arg: EventClickArg) {
-    const booking = bookings.find((b) => b.id === Number(arg.event.id))
+    const booking = bookings?.find((b) => b.id === Number(arg.event.id))
     if (booking) setSelected(booking)
   }
 
   async function handleSubmit() {
-    setError(null)
+    setErrors({})
     try {
       await api.post('/bookings', {
         site_id: Number(form.site_id),
@@ -90,81 +95,112 @@ export default function CalendarPage() {
         notes: form.notes || null,
       })
       setShowForm(false)
+      toast('Booking created')
       load()
-    } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Could not save booking.'
-      setError(message)
+    } catch (err) {
+      const fields = fieldErrors(err)
+      setErrors(
+        Object.keys(fields).length
+          ? fields
+          : { _general: [(err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Could not save booking.'] },
+      )
     }
   }
 
   async function handleCancel(booking: Booking) {
+    const ok = await confirm({
+      title: 'Cancel this booking?',
+      message: `"${booking.title}" will be removed from the calendar.`,
+      confirmLabel: 'Cancel booking',
+      danger: true,
+    })
+    if (!ok) return
     await api.put(`/bookings/${booking.id}`, { status: 'cancelled' })
     setSelected(null)
+    toast('Booking cancelled')
     load()
   }
 
+  if (!bookings) return <Spinner />
+
   return (
-    <div className="calendar-page">
-      <div className="calendar-toolbar">
-        <button onClick={() => openCreate()}>+ New booking</button>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Calendar</h1>
+        <button className="btn" onClick={() => openCreate()}>
+          + New booking
+        </button>
       </div>
-      <FullCalendar
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView="dayGridMonth"
-        headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' }}
-        events={bookings
-          .filter((b) => b.status !== 'cancelled')
-          .map((b) => ({
-            id: String(b.id),
-            title: `${b.title} (${b.type})`,
-            start: b.starts_at,
-            end: b.ends_at,
-            backgroundColor: typeColors[b.type],
-            borderColor: typeColors[b.type],
-          }))}
-        dateClick={handleDateClick}
-        eventClick={handleEventClick}
-        height="auto"
-      />
+
+      <div className="panel">
+        <FullCalendar
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          initialView="dayGridMonth"
+          headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' }}
+          events={bookings
+            .filter((b) => b.status !== 'cancelled')
+            .map((b) => ({
+              id: String(b.id),
+              title: `${b.title} (${b.type})`,
+              start: b.starts_at,
+              end: b.ends_at,
+              backgroundColor: typeColors[b.type],
+              borderColor: typeColors[b.type],
+            }))}
+          dateClick={handleDateClick}
+          eventClick={handleEventClick}
+          height="auto"
+        />
+      </div>
+
+      <div className="flex gap-5 text-xs text-ink-secondary">
+        {(Object.keys(typeColors) as Booking['type'][]).map((t) => (
+          <span key={t} className="inline-flex items-center gap-1.5 capitalize">
+            <span className="size-2.5 rounded-sm" style={{ backgroundColor: typeColors[t] }} />
+            {t}
+          </span>
+        ))}
+      </div>
 
       {showForm && (
         <Modal title="New booking" onClose={() => setShowForm(false)}>
-          <div className="form-grid">
-            <label>
-              Site
-              <select value={form.site_id} onChange={(e) => setForm({ ...form, site_id: e.target.value })}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="field-label">Site</label>
+              <select className="field" value={form.site_id} onChange={(e) => setForm({ ...form, site_id: e.target.value })}>
                 {sites.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              Type
-              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as Booking['type'] })}>
+              <FieldError errors={errors} name="site_id" />
+            </div>
+            <div>
+              <label className="field-label">Type</label>
+              <select className="field" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as Booking['type'] })}>
                 <option value="appointment">Appointment</option>
                 <option value="burial">Burial</option>
                 <option value="cremation">Cremation</option>
                 <option value="other">Other</option>
               </select>
-            </label>
-            <label>
-              Plot (optional)
-              <select value={form.plot_id} onChange={(e) => setForm({ ...form, plot_id: e.target.value })}>
+            </div>
+            <div>
+              <label className="field-label">Plot (optional)</label>
+              <select className="field" value={form.plot_id} onChange={(e) => setForm({ ...form, plot_id: e.target.value })}>
                 <option value="">—</option>
-                {plots.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.code}
-                  </option>
-                ))}
+                {plots
+                  .filter((p) => !form.site_id || p.site_id === Number(form.site_id))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.code}
+                    </option>
+                  ))}
               </select>
-            </label>
-            <label>
-              Family (optional)
-              <select value={form.family_id} onChange={(e) => setForm({ ...form, family_id: e.target.value })}>
+            </div>
+            <div>
+              <label className="field-label">Family (optional)</label>
+              <select className="field" value={form.family_id} onChange={(e) => setForm({ ...form, family_id: e.target.value })}>
                 <option value="">—</option>
                 {families.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -172,58 +208,69 @@ export default function CalendarPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="span-2">
-              Title
-              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            </label>
-            <label>
-              Starts at
-              <input
-                type="datetime-local"
-                value={form.starts_at}
-                onChange={(e) => setForm({ ...form, starts_at: e.target.value })}
-              />
-            </label>
-            <label>
-              Ends at
-              <input
-                type="datetime-local"
-                value={form.ends_at}
-                onChange={(e) => setForm({ ...form, ends_at: e.target.value })}
-              />
-            </label>
-            <label className="span-2">
-              Notes
-              <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-            </label>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="field-label">Title</label>
+              <input className="field" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              <FieldError errors={errors} name="title" />
+            </div>
+            <div>
+              <label className="field-label">Starts at</label>
+              <input type="datetime-local" className="field" value={form.starts_at} onChange={(e) => setForm({ ...form, starts_at: e.target.value })} />
+              <FieldError errors={errors} name="starts_at" />
+            </div>
+            <div>
+              <label className="field-label">Ends at</label>
+              <input type="datetime-local" className="field" value={form.ends_at} onChange={(e) => setForm({ ...form, ends_at: e.target.value })} />
+              <FieldError errors={errors} name="ends_at" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="field-label">Notes</label>
+              <textarea className="field" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            </div>
           </div>
-          {error && <p className="error">{error}</p>}
-          <button onClick={handleSubmit}>Save booking</button>
+          {errors._general && <p className="mt-3 text-sm text-status-critical">{errors._general[0]}</p>}
+          <button className="btn mt-4" onClick={handleSubmit} disabled={!form.title || !form.starts_at || !form.ends_at}>
+            Save booking
+          </button>
         </Modal>
       )}
 
       {selected && (
         <Modal title={selected.title} onClose={() => setSelected(null)}>
-          <p>
-            <strong>Type:</strong> {selected.type}
-          </p>
-          <p>
-            <strong>When:</strong> {new Date(selected.starts_at).toLocaleString()} –{' '}
-            {new Date(selected.ends_at).toLocaleString()}
-          </p>
-          {selected.family && (
-            <p>
-              <strong>Family:</strong> {selected.family.name}
+          <div className="space-y-2 text-sm">
+            <p className="flex items-center gap-2">
+              <StatusBadge status={selected.type} />
+              <StatusBadge status={selected.status} />
             </p>
-          )}
-          {selected.plot && (
             <p>
-              <strong>Plot:</strong> {selected.plot.code}
+              <span className="text-ink-muted">When: </span>
+              {new Date(selected.starts_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })} –{' '}
+              {new Date(selected.ends_at).toLocaleTimeString(undefined, { timeStyle: 'short' })}
             </p>
+            <p>
+              <span className="text-ink-muted">Site: </span>
+              {selected.site?.name}
+            </p>
+            {selected.family && (
+              <p>
+                <span className="text-ink-muted">Family: </span>
+                {selected.family.name}
+              </p>
+            )}
+            {selected.plot && (
+              <p>
+                <span className="text-ink-muted">Plot: </span>
+                {selected.plot.code}
+              </p>
+            )}
+            {selected.notes && <p className="text-ink-secondary">{selected.notes}</p>}
+          </div>
+          {selected.status === 'scheduled' && (
+            <button className="btn-danger mt-4" onClick={() => handleCancel(selected)}>
+              Cancel booking
+            </button>
           )}
-          {selected.notes && <p>{selected.notes}</p>}
-          <button onClick={() => handleCancel(selected)}>Cancel booking</button>
         </Modal>
       )}
     </div>

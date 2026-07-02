@@ -2,31 +2,34 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'plot_id',
     'family_id',
-    'start_date',
-    'end_date',
-    'billing_cycle',
-    'fee_amount',
-    'next_due_date',
-    'status',
+    'first_name',
+    'last_name',
+    'date_of_birth',
+    'date_of_death',
+    'interment_date',
+    'interment_type',
+    'notes',
 ])]
-class Reservation extends Model
+class Deceased extends Model
 {
-    use \App\Models\Concerns\Auditable;
+    use Auditable;
+
+    protected $table = 'deceaseds';
+
     protected function casts(): array
     {
         return [
-            'start_date' => 'date',
-            'end_date' => 'date',
-            'next_due_date' => 'date',
-            'fee_amount' => 'decimal:2',
+            'date_of_birth' => 'date',
+            'date_of_death' => 'date',
+            'interment_date' => 'date',
         ];
     }
 
@@ -38,10 +41,5 @@ class Reservation extends Model
     public function family(): BelongsTo
     {
         return $this->belongsTo(Family::class);
-    }
-
-    public function payments(): HasMany
-    {
-        return $this->hasMany(Payment::class);
     }
 }

@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
-import { api } from '../api/client'
+import { useCallback, useEffect, useState } from 'react'
+import { api, fieldErrors } from '../api/client'
 import type { Family, Plot, Reservation } from '../api/types'
+import { EmptyState, FieldError, Spinner, StatusBadge } from '../components/ui'
+import { useToast } from '../components/Toast'
+import { useConfirm } from '../components/ConfirmDialog'
 
 export default function ReservationsPage() {
-  const [reservations, setReservations] = useState<Reservation[]>([])
+  const [reservations, setReservations] = useState<Reservation[] | null>(null)
   const [plots, setPlots] = useState<Plot[]>([])
   const [families, setFamilies] = useState<Family[]>([])
   const [form, setForm] = useState({
@@ -13,9 +16,11 @@ export default function ReservationsPage() {
     billing_cycle: 'yearly' as Reservation['billing_cycle'],
     fee_amount: '',
   })
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<Record<string, string[]>>({})
+  const toast = useToast()
+  const confirm = useConfirm()
 
-  async function load() {
+  const load = useCallback(async () => {
     const [r, p, f] = await Promise.all([
       api.get('/reservations'),
       api.get('/plots', { params: { status: 'available' } }),
@@ -24,14 +29,14 @@ export default function ReservationsPage() {
     setReservations(r.data)
     setPlots(p.data)
     setFamilies(f.data)
-  }
+  }, [])
 
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   async function addReservation() {
-    setError(null)
+    setErrors({})
     try {
       await api.post('/reservations', {
         plot_id: Number(form.plot_id),
@@ -41,101 +46,139 @@ export default function ReservationsPage() {
         fee_amount: Number(form.fee_amount),
       })
       setForm({ plot_id: '', family_id: '', start_date: '', billing_cycle: 'yearly', fee_amount: '' })
+      toast('Reservation created')
       load()
-    } catch {
-      setError('Could not create reservation. Check all fields are filled.')
+    } catch (err) {
+      setErrors(fieldErrors(err))
+      toast('Could not create reservation', 'error')
     }
   }
 
   async function cancelReservation(r: Reservation) {
+    const ok = await confirm({
+      title: 'Cancel this reservation?',
+      message: `Plot ${r.plot?.code} will become available again and future fees will stop for ${r.family?.name}.`,
+      confirmLabel: 'Cancel reservation',
+      danger: true,
+    })
+    if (!ok) return
     await api.put(`/reservations/${r.id}`, { status: 'cancelled' })
+    toast('Reservation cancelled')
     load()
   }
 
-  return (
-    <div className="panel">
-      <h2>Plot reservations & fees</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Plot</th>
-            <th>Family</th>
-            <th>Start</th>
-            <th>Billing</th>
-            <th>Fee</th>
-            <th>Status</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {reservations.map((r) => (
-            <tr key={r.id}>
-              <td>{r.plot?.code}</td>
-              <td>{r.family?.name}</td>
-              <td>{r.start_date.slice(0, 10)}</td>
-              <td>{r.billing_cycle}</td>
-              <td>${r.fee_amount}</td>
-              <td>
-                <span className={`badge badge-${r.status}`}>{r.status}</span>
-              </td>
-              <td>
-                {r.status === 'active' && <button onClick={() => cancelReservation(r)}>Cancel</button>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+  if (!reservations) return <Spinner />
 
-      <h3>New reservation</h3>
-      <div className="form-grid">
-        <label>
-          Available plot
-          <select value={form.plot_id} onChange={(e) => setForm({ ...form, plot_id: e.target.value })}>
-            <option value="">Select plot…</option>
-            {plots.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.site?.name} — {p.code}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Family
-          <select value={form.family_id} onChange={(e) => setForm({ ...form, family_id: e.target.value })}>
-            <option value="">Select family…</option>
-            {families.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Start date
-          <input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
-        </label>
-        <label>
-          Billing cycle
-          <select
-            value={form.billing_cycle}
-            onChange={(e) => setForm({ ...form, billing_cycle: e.target.value as Reservation['billing_cycle'] })}
-          >
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
-        </label>
-        <label>
-          Fee amount
-          <input
-            type="number"
-            step="0.01"
-            value={form.fee_amount}
-            onChange={(e) => setForm({ ...form, fee_amount: e.target.value })}
-          />
-        </label>
+  return (
+    <div className="space-y-6">
+      <h1 className="text-xl font-semibold">Reservations & fees</h1>
+
+      <div className="panel">
+        {reservations.length === 0 ? (
+          <EmptyState title="No reservations yet" hint="Reserve a plot for a family below to start billing." />
+        ) : (
+          <table className="table-base">
+            <thead>
+              <tr className="border-b border-hairline text-left text-xs uppercase tracking-wide text-ink-muted">
+                <th className="pb-2 pr-4 font-medium">Plot</th>
+                <th className="pb-2 pr-4 font-medium">Family</th>
+                <th className="pb-2 pr-4 font-medium">Start</th>
+                <th className="pb-2 pr-4 font-medium">Billing</th>
+                <th className="pb-2 pr-4 font-medium">Fee</th>
+                <th className="pb-2 pr-4 font-medium">Next due</th>
+                <th className="pb-2 pr-4 font-medium">Status</th>
+                <th className="pb-2 font-medium" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-hairline">
+              {reservations.map((r) => (
+                <tr key={r.id}>
+                  <td className="py-2.5 pr-4 font-medium">{r.plot?.code}</td>
+                  <td className="py-2.5 pr-4">{r.family?.name}</td>
+                  <td className="py-2.5 pr-4 text-ink-secondary">{r.start_date.slice(0, 10)}</td>
+                  <td className="py-2.5 pr-4 capitalize text-ink-secondary">{r.billing_cycle}</td>
+                  <td className="py-2.5 pr-4">${r.fee_amount}</td>
+                  <td className="py-2.5 pr-4 text-ink-secondary">{r.next_due_date?.slice(0, 10) ?? '—'}</td>
+                  <td className="py-2.5 pr-4">
+                    <StatusBadge status={r.status} />
+                  </td>
+                  <td className="py-2.5 text-right">
+                    {r.status === 'active' && (
+                      <button className="btn-secondary !px-2.5 !py-1 text-xs" onClick={() => cancelReservation(r)}>
+                        Cancel
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
-      {error && <p className="error">{error}</p>}
-      <button onClick={addReservation}>Create reservation</button>
+
+      <div className="panel">
+        <h2 className="mb-3 text-sm font-semibold">New reservation</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div>
+            <label className="field-label">Available plot</label>
+            <select className="field" value={form.plot_id} onChange={(e) => setForm({ ...form, plot_id: e.target.value })}>
+              <option value="">Select plot…</option>
+              {plots.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.site?.name} — {p.code}
+                </option>
+              ))}
+            </select>
+            <FieldError errors={errors} name="plot_id" />
+          </div>
+          <div>
+            <label className="field-label">Family</label>
+            <select className="field" value={form.family_id} onChange={(e) => setForm({ ...form, family_id: e.target.value })}>
+              <option value="">Select family…</option>
+              {families.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+            <FieldError errors={errors} name="family_id" />
+          </div>
+          <div>
+            <label className="field-label">Start date</label>
+            <input type="date" className="field" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+            <FieldError errors={errors} name="start_date" />
+          </div>
+          <div>
+            <label className="field-label">Billing cycle</label>
+            <select
+              className="field"
+              value={form.billing_cycle}
+              onChange={(e) => setForm({ ...form, billing_cycle: e.target.value as Reservation['billing_cycle'] })}
+            >
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <div>
+            <label className="field-label">Fee amount ($)</label>
+            <input
+              type="number"
+              step="0.01"
+              className="field"
+              value={form.fee_amount}
+              onChange={(e) => setForm({ ...form, fee_amount: e.target.value })}
+            />
+            <FieldError errors={errors} name="fee_amount" />
+          </div>
+        </div>
+        <button
+          className="btn mt-4"
+          onClick={addReservation}
+          disabled={!form.plot_id || !form.family_id || !form.start_date || !form.fee_amount}
+        >
+          Create reservation
+        </button>
+      </div>
     </div>
   )
 }

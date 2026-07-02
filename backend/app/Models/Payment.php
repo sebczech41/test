@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable(['reservation_id', 'amount', 'due_date', 'paid_at', 'status', 'stripe_invoice_id'])]
 class Payment extends Model
 {
+    use \App\Models\Concerns\Auditable;
     protected function casts(): array
     {
         return [

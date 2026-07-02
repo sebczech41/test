@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class Booking extends Model
 {
+    use \App\Models\Concerns\Auditable;
     protected function casts(): array
     {
         return [

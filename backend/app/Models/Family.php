@@ -5,12 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Notifications\Notifiable;
 use Laravel\Cashier\Billable;
 
 #[Fillable(['name', 'email', 'phone', 'address'])]
 class Family extends Model
 {
+    use \App\Models\Concerns\Auditable;
     use Billable;
+    use Notifiable;
 
     public function reservations(): HasMany
     {

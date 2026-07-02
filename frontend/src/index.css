@@ -1,267 +1,66 @@
-:root {
-  --text: #3a3a3a;
-  --text-h: #1a1a1a;
-  --bg: #f7f6f3;
-  --border: #ddd9d2;
-  --accent: #2f6f4f;
-  --accent-dark: #234f38;
-  --danger: #a3372f;
-  --warn: #b8860b;
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  font: 15px/1.5 var(--sans);
-  color: var(--text);
-  background: var(--bg);
-}
+@import 'tailwindcss';
 
-* {
-  box-sizing: border-box;
+@theme {
+  --color-brand-50: #eef5f1;
+  --color-brand-100: #d7e8de;
+  --color-brand-200: #b0d1c0;
+  --color-brand-300: #83b59d;
+  --color-brand-400: #55977a;
+  --color-brand-500: #3a7d60;
+  --color-brand-600: #2f6f4f;
+  --color-brand-700: #265a41;
+  --color-brand-800: #1e4734;
+  --color-brand-900: #173628;
+
+  --color-surface: #fcfcfb;
+  --color-page: #f6f6f3;
+  --color-ink: #0b0b0b;
+  --color-ink-secondary: #52514e;
+  --color-ink-muted: #898781;
+  --color-hairline: #e1e0d9;
+
+  --color-status-good: #0ca30c;
+  --color-status-warning: #b8860b;
+  --color-status-critical: #d03b3b;
+
+  --color-seq-250: #86b6ef;
+  --color-seq-450: #2a78d6;
+  --color-seq-650: #104281;
 }
 
 body {
-  margin: 0;
+  @apply bg-page text-ink antialiased;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
-h1, h2, h3 {
-  color: var(--text-h);
-  font-weight: 600;
+@utility panel {
+  @apply rounded-xl border border-hairline bg-surface p-5 shadow-sm;
 }
 
-button {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 14px;
-  font-size: 14px;
-  cursor: pointer;
+@utility btn {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50;
 }
 
-button:hover {
-  background: var(--accent-dark);
+@utility btn-secondary {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-hairline bg-surface px-3.5 py-2 text-sm font-medium text-ink-secondary transition-colors hover:bg-page;
 }
 
-input, select, textarea {
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 14px;
-  font-family: inherit;
+@utility btn-danger {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-status-critical px-3.5 py-2 text-sm font-medium text-white transition-colors hover:opacity-90;
 }
 
-.app-shell {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+@utility field {
+  @apply w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100;
 }
 
-.app-header {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 14px 24px;
-  background: #fff;
-  border-bottom: 1px solid var(--border);
+@utility field-label {
+  @apply mb-1 block text-xs font-medium text-ink-secondary;
 }
 
-.app-header h1 {
-  font-size: 18px;
-  margin: 0;
-  white-space: nowrap;
+@utility table-base {
+  @apply w-full border-collapse text-sm;
 }
 
-.app-header nav {
-  display: flex;
-  gap: 16px;
-  flex: 1;
-}
-
-.app-header nav a {
-  color: var(--text);
-  text-decoration: none;
-  padding: 6px 10px;
-  border-radius: 6px;
-}
-
-.app-header nav a.active {
-  background: var(--accent);
-  color: #fff;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.app-content {
-  flex: 1;
-  padding: 24px;
-}
-
-.login-screen {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 320px;
-  padding: 32px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.login-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
-}
-
-.panel {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 20px;
-}
-
-.two-column {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 20px;
-}
-
-.list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 16px;
-}
-
-.list li {
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.list li.active {
-  background: var(--accent);
-  color: #fff;
-}
-
-.muted {
-  opacity: 0.7;
-  font-size: 13px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 16px;
-}
-
-th, td {
-  text-align: left;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-  font-size: 14px;
-}
-
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 100px;
-  font-size: 12px;
-  text-transform: capitalize;
-}
-
-.badge-available, .badge-active, .badge-paid {
-  background: #e1f0e8;
-  color: var(--accent-dark);
-}
-
-.badge-reserved, .badge-pending, .badge-scheduled {
-  background: #fdf1d9;
-  color: var(--warn);
-}
-
-.badge-occupied, .badge-cancelled, .badge-overdue, .badge-expired {
-  background: #f6dedc;
-  color: var(--danger);
-}
-
-.inline-form {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.form-grid label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-}
-
-.form-grid .span-2 {
-  grid-column: 1 / -1;
-}
-
-.error {
-  color: var(--danger);
-  font-size: 13px;
-}
-
-.calendar-toolbar {
-  margin-bottom: 12px;
-}
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-
-.modal {
-  background: #fff;
-  border-radius: 10px;
-  padding: 20px;
-  width: 480px;
-  max-width: 90vw;
-  max-height: 85vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.modal-close {
-  background: none;
-  color: var(--text);
-  font-size: 20px;
-  padding: 0 6px;
-}
-
-.modal-close:hover {
-  background: var(--border);
+@utility badge {
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize;
 }
